@@ -1,4 +1,4 @@
-from .. import schemas, utils, models
+from .. import schemas, utils, models, oauth2
 from ..database import get_db
 
 # libary imports
@@ -58,28 +58,53 @@ def get_user(id: int, db: Session = Depends(get_db)):
 
 # update user by id
 @router.put("/{id}", response_model=schemas.UserOut)
-def get_user(id: int, db: Session = Depends(get_db)):
-
+def update_user(id: int, user_update: schemas.UserUpdate, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
+    
     # database
-    user = db.query(models.User).filter(models.User.id == id).first()
+    user_query = db.query(models.User).filter(models.User.id == id)
+    user = user_query.first()
 
     # status code
     if user == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"User with id {id} does not exist")
+                            detail=f"post with id {id} not found")
+    
+    # auth
+    if user.id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"User not authorized to peform requested action.")
+    
+    # handle password
+    if user_update.password:
+        hashed_password = utils.hash(user_update.password)
+        user_update.password = hashed_password
+    
+    # update
+    user_query.update(user_update.model_dump(exclude_unset=True), synchronize_session=False)
+    db.commit()
 
     return user
 
 # delete user by id
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def get_user(id: int, db: Session = Depends(get_db)):
-
+def delete_user(id: int, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
+    
     # database
-    user = db.query(models.User).filter(models.User.id == id).first()
+    user_query = db.query(models.User).filter(models.User.id == id)
+    user = user_query.first()
 
     # status code
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"User with id {id} does not exist.")
+    
+    # auth
+    if user.id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"User not authorized to peform requested action.")
+    
+    # delete
+    user_query.delete(synchronize_session=False)
+    db.commit()
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

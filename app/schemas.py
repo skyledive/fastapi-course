@@ -11,6 +11,17 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 class User(BaseModel):
     email: EmailStr
     password: str
+    phone_number: Optional[str] = Field(None, pattern=r'^\+?1?\d{9,15}$')
+
+# update user info
+class UserUpdate(BaseModel):
+    password: Optional[str] = None
+    phone_number: Optional[str] = Field(None, pattern=r'^\+?1?\d{9,15}$')
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,  # Allow arbitrary types such as datetime
+        from_attributes=True           # Ensure orm_mode compatibility
+    )
 
 # user response
 class UserOut(BaseModel):
